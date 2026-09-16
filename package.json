@@ -10,6 +10,8 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@nuxt/fonts": "^0.14.0",
+    "argon2": "^0.43.1",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.2",
     "nuxt": "^4.5.2",
@@ -19,6 +21,7 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^22.20.3",
     "@vite-pwa/nuxt": "^1.1.1",
     "drizzle-kit": "^0.31.10",
     "sass": "^1.104.1",

@@ -2,10 +2,16 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
+  nitro: {
+    externals: {
+      external: ['better-sqlite3', 'argon2']
+    }
+  },
   modules: [
     'vuetify-nuxt-module',
     '@vite-pwa/nuxt',
-    'nuxt-auth-utils'
+    'nuxt-auth-utils',
+    '@nuxt/fonts'
   ],
   pwa: {
     manifest: {
@@ -17,5 +23,5 @@ export default defineNuxtConfig({
         { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' }
       ]
     }
-  }
+  },
 })

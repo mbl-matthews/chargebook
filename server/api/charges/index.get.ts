@@ -1,9 +1,10 @@
-import { eq, isNull, desc } from 'drizzle-orm'
+import { eq, isNull, desc, and } from 'drizzle-orm'
 import { db } from '../../utils/db'
 import { charge_t, creditor_t } from '../../db/schema'
 
 export default defineEventHandler(async (event) => {
-    await requireUserSession(event)
+    const session = await requireUserSession(event)
+    const userId = (session.user as any).id
     const query = getQuery(event)
 
     const baseQuery = db.select({
@@ -16,11 +17,9 @@ export default defineEventHandler(async (event) => {
     })
         .from(charge_t)
         .innerJoin(creditor_t, eq(charge_t.creditor_id, creditor_t.id))
-        .orderBy(desc(charge_t.created_at), desc(charge_t.id))
 
-    if (query.unpaidOnly === 'true') {
-        return await baseQuery.where(isNull(charge_t.posted_at))
-    }
+    const whereClause = query.unpaidOnly === 'true' ?
+        and(eq(charge_t.user_id, userId), isNull(charge_t.posted_at)) : eq(charge_t.user_id, userId)
 
-    return await baseQuery
+    return await baseQuery.where(whereClause).orderBy(desc(charge_t.created_at), desc(charge_t.id))
 })

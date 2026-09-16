@@ -3,10 +3,12 @@ import { charge_t } from '../../db/schema'
 import type { CreateChargeInput } from '#shared/types/types.ts'
 
 export default defineEventHandler(async (event) => {
-    await requireUserSession(event)
+    const session = await requireUserSession(event)
+    const userId = (session.user as any).id
     const body = await readBody<CreateChargeInput>(event)
 
     const newCharge = await db.insert(charge_t).values({
+        user_id: userId,
         creditor_id: body.creditor_id,
         amount: body.amount,
         created_at: body.created_at,
