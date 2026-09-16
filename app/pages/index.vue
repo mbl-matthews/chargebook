@@ -31,7 +31,7 @@
     <!-- Header mit Aktionen -->
     <v-row class="mb-4" align="center" justify="center">
       <v-col cols="auto">
-        <v-btn prepend-icon="mdi-account-plus" color="primary" class="mr-2" @click="dialogCreditor = true">
+        <v-btn prepend-icon="mdi-account-plus" color="primary" class="mr-2" @click="dialogCreditors = true">
         Creditor
         </v-btn>
         <v-btn prepend-icon="mdi-battery-plus" color="primary" class="mr-2" @click="dialogCharge = true">
@@ -76,7 +76,7 @@
       <v-divider class="mx-n4 my-n2 mx-sm-0"></v-divider>
     </div>
     <!-- Liste als Cards -->
-    <v-row v-if="charges && charges.length > 0" dense>
+    <v-row v-if="charges && charges.length > 0" density="compact">
       <v-col cols="12" v-for="item in charges" :key="item.id">
         <v-card
             :class="{ 'bg-grey-lighten-4 text-grey': !!item.posted_at }"
@@ -114,7 +114,14 @@
                 </div>
               </div>
             </div>
-
+            <v-btn
+                icon="mdi-dots-vertical"
+                variant="text"
+                color="grey"
+                size="small"
+                class="ml-2"
+                @click.stop="openEditDialog(item)"
+            />
           </div>
         </v-card>
       </v-col>
@@ -128,13 +135,37 @@
     <!-- Dialog: Bezahldatum wählen -->
     <v-dialog v-model="dialogPayDate" max-width="400">
       <v-card title="Paydate" class="pa-4">
-        <v-text-field
-            v-model="payDate"
-            label="Datum"
-            type="date"
-            variant="outlined"
-            class="mt-2"
-        />
+        <v-container>
+          <v-row density="compact">
+            <v-col>
+              <v-text-field
+                  v-model="price"
+                  label="Price per kWh"
+                  type="number"
+                  variant="outlined"
+                  class="mt-2"
+              />
+            </v-col>
+          </v-row>
+          <v-row class="mt-n3 mb-4" density="compact">
+            <v-col>
+              <div class="font-italic">
+                Price: <span class="font-weight-bold">{{ (price * selectedSum).toFixed(2) }} € </span>
+              </div>
+            </v-col>
+          </v-row>
+          <v-row density="compact">
+            <v-col>
+              <v-text-field
+                  v-model="payDate"
+                  label="Datum"
+                  type="date"
+                  variant="outlined"
+                  class="mt-2"
+              />
+            </v-col>
+          </v-row>
+        </v-container>
         <v-card-actions class="px-0 pb-0 mt-2">
           <v-spacer></v-spacer>
           <v-btn color="grey" outlined variant="text" @click="dialogPayDate = false">Close</v-btn>
@@ -143,14 +174,87 @@
       </v-card>
     </v-dialog>
 
-    <!-- Dialog: Neue Person (Gläubiger) -->
-    <v-dialog v-model="dialogCreditor" max-width="400">
-      <v-card title="Add Creditor" class="pa-4">
-        <v-text-field v-model="newCreditorName" label="Name" variant="outlined" class="mt-2" />
-        <v-card-actions class="px-0 pb-0 mt-2">
-          <v-spacer></v-spacer>
-          <v-btn color="grey" outlined variant="text" @click="dialogCreditor = false">Close</v-btn>
-          <v-btn color="primary" variant="elevated" @click="addCreditor">Save</v-btn>
+    <v-dialog v-model="dialogCreditors" max-width="500">
+      <v-card title="Manage creditors" class="pa-4">
+
+        <div class="d-flex ga-2 mb-4">
+          <v-text-field
+              v-model="newCreditorName"
+              label="Name"
+              variant="outlined"
+              density="compact"
+              hide-details
+              @keyup.enter="addCreditor"
+          />
+          <v-btn color="primary" height="40" @click="addCreditor">
+            Add
+          </v-btn>
+        </div>
+
+        <v-divider class="mb-2" />
+
+        <v-list density="compact">
+          <v-list-item
+              v-for="c in creditors || []"
+              :key="c.id"
+              class="px-0"
+          >
+            <template v-if="editingCreditorId === c.id">
+              <div class="d-flex align-center w-100 ga-2">
+                <span class="text-caption text-grey">ID {{ c.id }}</span>
+                <v-text-field
+                    v-model="editingCreditorName"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    autofocus
+                    @keyup.enter="saveEditCreditor(c.id)"
+                />
+                <v-btn
+                    icon="mdi-check"
+                    color="success"
+                    variant="text"
+                    size="small"
+                    @click="saveEditCreditor(c.id)"
+                />
+                <v-btn
+                    icon="mdi-close"
+                    color="error"
+                    variant="text"
+                    size="small"
+                    @click="cancelEditCreditor"
+                />
+              </div>
+            </template>
+
+            <template v-else>
+              <div class="d-flex align-center justify-space-between w-100">
+                <div>
+                  <span class="text-caption text-grey mr-3">ID {{ c.id }}</span>
+                  <span class="font-weight-medium">{{ c.name }}</span>
+                </div>
+                <div>
+                  <v-btn
+                      icon="mdi-pencil"
+                      variant="text"
+                      color="grey"
+                      size="small"
+                      @click="startEditCreditor(c)"
+                  />
+                  <v-btn
+                      icon="mdi-delete"
+                      variant="text"
+                      color="error"
+                      size="small"
+                      @click="deleteCreditor(c.id)"
+                  />
+                </div>
+              </div>
+            </template>
+          </v-list-item>
+        </v-list>
+        <v-card-actions>
+          <v-btn color="grey" outlined variant="text" @click="dialogCreditors = false">Close</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -187,6 +291,45 @@
       </v-card>
     </v-dialog>
   </v-container>
+  <v-dialog v-model="dialogEdit" max-width="500">
+    <v-card title="Eintrag bearbeiten" class="pa-4" v-if="editForm">
+      <v-select
+          v-model="editForm.creditor_id"
+          :items="creditors || []"
+          item-title="name"
+          item-value="id"
+          label="Person / Ladepunkt"
+          variant="outlined"
+          class="mt-2"
+      />
+      <v-text-field
+          v-model.number="editForm.amount"
+          label="Betrag in kWh"
+          type="number"
+          step="0.01"
+          min="0"
+          variant="outlined"
+      />
+      <v-text-field
+          v-model="editForm.created_at"
+          label="Erfasst am"
+          type="date"
+          variant="outlined"
+      />
+      <v-text-field
+          v-model="editForm.posted_at"
+          label="Bezahlt am (optional)"
+          type="date"
+          clearable
+          variant="outlined"
+      />
+      <v-card-actions class="px-0 pb-0 mt-2">
+        <v-spacer />
+        <v-btn color="grey" outlined variant="text" @click="dialogEdit = false">Close</v-btn>
+        <v-btn color="primary" variant="elevated" @click="saveEditCharge">Save</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <script setup lang="ts">
@@ -199,10 +342,25 @@ type LoadingCallback = () => any;
 const overlay = ref(false)
 const unpaidOnly = ref(false)
 const dialogCharge = ref(false)
-const dialogCreditor = ref(false)
 const newCreditorName = ref('')
-
-// Neu: Zustände für den Bezahldatum-Dialog
+const price = ref(0.3)
+const dialogEdit = ref(false)
+const editForm = ref<{
+  id: number
+  creditor_id: number
+  amount: number
+  created_at: string
+  posted_at: string | null
+}>({
+  id: -1,
+  creditor_id: -1,
+  amount: -1,
+  created_at: "1970-01-01",
+  posted_at: null,
+})
+const dialogCreditors = ref(false)
+const editingCreditorId = ref<number | null>(null)
+const editingCreditorName = ref('')
 const dialogPayDate = ref(false)
 const payDate = ref(new Date().toISOString().split('T')[0])
 
@@ -305,12 +463,40 @@ const selectedSum = computed(() => {
       .reduce((sum, current) => sum + current.amount, 0)
 })
 
-// --- SPEICHERN & BEZAHLEN LOGIK ---
+function openEditDialog(item: ChargeEntry) {
+  editForm.value = {
+    id: item.id,
+    creditor_id: item.creditor_id,
+    amount: item.amount,
+    created_at: item.created_at,
+    posted_at: item.posted_at || null
+  }
+  dialogEdit.value = true
+}
 
 // Öffnet den Dialog und setzt das Datum zur Sicherheit auf "heute" zurück
 function openPayDialog() {
   payDate.value = new Date().toISOString().split('T')[0]
   dialogPayDate.value = true
+}
+
+async function saveEditCharge() {
+  if (!editForm.value) return
+
+  await loading(async () => {
+    await $fetch(`/api/charges/edit/${editForm.value.id}`, {
+      method: 'PUT',
+      body: {
+        creditor_id: editForm.value.creditor_id,
+        amount: editForm.value.amount,
+        created_at: editForm.value.created_at,
+        posted_at: editForm.value.posted_at || null
+      }
+    })
+
+    dialogEdit.value = false
+    refreshCharges()
+  })
 }
 
 // Wird aufgerufen, wenn im neuen Datum-Dialog auf Speichern geklickt wird
@@ -370,6 +556,45 @@ async function loading(callback: LoadingCallback) {
   } finally {
     overlay.value = false
   }
+}
+
+// Edit-Modus starten
+function startEditCreditor(creditor: Creditor) {
+  editingCreditorId.value = creditor.id
+  editingCreditorName.value = creditor.name
+}
+
+// Edit-Modus abbrechen
+function cancelEditCreditor() {
+  editingCreditorId.value = null
+  editingCreditorName.value = ''
+}
+
+// Creditor-Name speichern
+async function saveEditCreditor(id: number) {
+  if (!editingCreditorName.value.trim()) return
+
+  await loading(async () => {
+    await $fetch(`/api/creditors/${id}`, {
+      method: 'PUT',
+      body: { name: editingCreditorName.value }
+    })
+
+    cancelEditCreditor()
+    refreshCreditors()
+    refreshCharges() // Aktualisiert auch die Namen in der Hauptliste
+  })
+}
+
+// Creditor löschen
+async function deleteCreditor(id: number) {
+  if (!confirm('Person/Ladepunkt wirklich löschen?')) return
+
+  await loading(async () => {
+    await $fetch(`/api/creditors/${id}`, { method: 'DELETE' })
+    refreshCreditors()
+    refreshCharges()
+  })
 }
 </script>
 
