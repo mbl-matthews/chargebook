@@ -5,13 +5,8 @@
         <v-card class="pa-4" elevation="3">
           <AppLogo :size="64" class="mb-2" />
           <v-form @submit.prevent="login" class="mt-4">
-            <v-text-field
-                v-model="password"
-                label="Passwort"
-                type="password"
-                variant="outlined"
-                :error-messages="error"
-            />
+            <v-text-field v-model="username" label="Benutzername" variant="outlined" />
+            <v-text-field v-model="password" label="Passwort" type="password" variant="outlined" :error-messages="error"/>
             <v-btn type="submit" color="primary" block size="large" class="mt-2">
               Login
             </v-btn>
@@ -26,12 +21,13 @@
 import { ref } from 'vue'
 
 const password = ref('')
+const username = ref('')
 const error = ref('')
 const { fetch: refreshSession } = useUserSession()
 
 async function login() {
   try {
-    await $fetch('/api/login', { method: 'POST', body: { password: password.value } })
+    await $fetch('/api/login', { method: 'POST', body: { username: username.value, password: password.value } })
     await refreshSession()
     navigateTo('/')
   } catch (e) {

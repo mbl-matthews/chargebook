@@ -526,7 +526,6 @@ async function addCreditor() {
     if (!newCreditorName.value.trim()) return
     await $fetch('/api/creditors', { method: 'POST', body: { name: newCreditorName.value } })
     newCreditorName.value = ''
-    dialogCreditor.value = false
     await refreshCreditors()
   })
 }
