@@ -37,6 +37,12 @@
         <v-btn prepend-icon="mdi-battery-plus" color="primary" class="mr-2" @click="dialogCharge = true">
         Charge
         </v-btn>
+        <v-btn
+            icon="mdi-file-pdf-box"
+            variant="text"
+            color="purple"
+            @click="dialogReport = true"
+        />
         <v-btn icon="mdi-logout" size="small" color="error" @click="logout">
         </v-btn>
       </v-col>
@@ -107,6 +113,12 @@
                 </v-chip>
                 <span class="text-subtitle-1">{{ item.creditor_name }}</span>
               </div>
+              <span class="text-h6 font-weight-bold">
+  {{ item.amount.toFixed(2) }} kWh
+  <span v-if="item.cent !== null" class="text-body-2 text-grey ml-1">
+    ({{ item.cent }}€ pro kWh)
+  </span>
+</span>
               <div class="text-label-small font-italic">
                 Created: {{ item.created_at }}
                 <div v-if="item.posted_at">
@@ -131,6 +143,38 @@
     <v-card v-else class="pa-8 text-center text-grey" elevation="0" border>
       No Charges...
     </v-card>
+
+    <v-dialog v-model="dialogReport" max-width="400">
+      <v-card title="Jahresbericht als PDF" class="pa-4">
+        <v-select
+            v-model="reportForm.creditor_id"
+            :items="creditors || []"
+            item-title="name"
+            item-value="id"
+            label="Person / Ladepunkt"
+            variant="outlined"
+            class="mt-2"
+        />
+        <v-text-field
+            v-model.number="reportForm.year"
+            label="Jahr"
+            type="number"
+            variant="outlined"
+        />
+        <v-card-actions class="px-0 pb-0 mt-2">
+          <v-spacer />
+          <v-btn color="grey" variant="text" @click="dialogReport = false">Abbrechen</v-btn>
+          <v-btn
+              color="primary"
+              variant="elevated"
+              :disabled="!reportForm.creditor_id || !reportForm.year"
+              @click="generatePDF"
+          >
+            Herunterladen
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <!-- Dialog: Bezahldatum wählen -->
     <v-dialog v-model="dialogPayDate" max-width="400">
@@ -279,6 +323,14 @@
             variant="outlined"
         />
         <v-text-field
+            v-model.number="newCharge.cent"
+            label="Cent"
+            type="number"
+            step="0.01"
+            min="0"
+            variant="outlined"
+        />
+        <v-text-field
             v-model="newCharge.created_at"
             label="Date"
             type="date"
@@ -311,6 +363,14 @@
           variant="outlined"
       />
       <v-text-field
+          v-model.number="editForm.cent"
+          label="Cent"
+          type="number"
+          step="0.01"
+          min="0"
+          variant="outlined"
+      />
+      <v-text-field
           v-model="editForm.created_at"
           label="Erfasst am"
           type="date"
@@ -335,6 +395,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import type { CreateChargeInput, ChargeEntry, Creditor } from '#shared/types/types'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 type LoadingCallback = () => any;
 
@@ -349,12 +411,14 @@ const editForm = ref<{
   id: number
   creditor_id: number
   amount: number
+  cent: number | null
   created_at: string
   posted_at: string | null
 }>({
   id: -1,
   creditor_id: -1,
   amount: -1,
+  cent: 0,
   created_at: "1970-01-01",
   posted_at: null,
 })
@@ -367,7 +431,14 @@ const payDate = ref(new Date().toISOString().split('T')[0])
 const newCharge = ref<CreateChargeInput>({
   creditor_id: 0,
   amount: 0,
+  cent: 0,
   created_at: new Date().toISOString().split('T')[0]
+})
+
+const dialogReport = ref(false)
+const reportForm = ref({
+  creditor_id: null as number | null,
+  year: new Date().getFullYear()
 })
 
 // --- API Daten abrufen ---
@@ -468,6 +539,7 @@ function openEditDialog(item: ChargeEntry) {
     id: item.id,
     creditor_id: item.creditor_id,
     amount: item.amount,
+    cent: item.cent,
     created_at: item.created_at,
     posted_at: item.posted_at || null
   }
@@ -489,6 +561,7 @@ async function saveEditCharge() {
       body: {
         creditor_id: editForm.value.creditor_id,
         amount: editForm.value.amount,
+        cent: editForm.value.cent,
         created_at: editForm.value.created_at,
         posted_at: editForm.value.posted_at || null
       }
@@ -509,7 +582,7 @@ async function confirmPayment() {
         selectedIds.value.map(id =>
             $fetch(`/api/charges/${id}`, {
               method: 'PUT',
-              body: { posted_at: payDate.value }
+              body: { posted_at: payDate.value, cent: price.value }
             })
         )
     )
@@ -535,6 +608,7 @@ async function addCharge() {
     if (!newCharge.value.creditor_id || !newCharge.value.amount) return
     await $fetch('/api/charges', { method: 'POST', body: newCharge.value })
     newCharge.value.amount = 0
+    newCharge.value.cent = 0
     dialogCharge.value = false
     refreshCharges()
   })
@@ -594,6 +668,94 @@ async function deleteCreditor(id: number) {
     refreshCreditors()
     refreshCharges()
   })
+}
+
+async function generatePDF() {
+  if (!reportForm.value.creditor_id || !reportForm.value.year) return
+
+  const data = await $fetch('/api/reports/yearly', {
+    query: {
+      creditor_id: reportForm.value.creditor_id,
+      year: reportForm.value.year
+    }
+  })
+
+  // @ts-ignore - Struktur aus der API
+  const { creditor, charges } = data
+
+  const doc = new jsPDF()
+  doc.setFontSize(18)
+  doc.text(`Jahresabrechnung ${reportForm.value.year} - ${creditor.name}`, 14, 22)
+
+  const months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
+  let currentY = 35
+  let totalYearCost = 0
+
+  // Einträge nach Monat gruppieren
+  const chargesByMonth: Record<string, typeof charges> = {}
+  for (let i = 1; i <= 12; i++) {
+    chargesByMonth[String(i).padStart(2, '0')] = []
+  }
+
+  charges.forEach((c: any) => {
+    const month = c.created_at.split('-')[1] // Zieht MM aus YYYY-MM-DD
+    if (chargesByMonth[month]) chargesByMonth[month].push(c)
+  })
+
+  // Jeden Monat als eigene Tabelle ausgeben
+  for (const [monthStr, monthCharges] of Object.entries(chargesByMonth)) {
+    if (monthCharges.length === 0) continue
+
+    const monthName = months[parseInt(monthStr) - 1]
+    let monthTotalCost = 0
+
+    const tableBody = monthCharges.map((c: any) => {
+      const cent = c.cent ?? 0 // Fallback auf 0, falls null
+      const costInEuro = (c.amount * cent) // kWh * Cent -> Euro
+
+      monthTotalCost += costInEuro
+      totalYearCost += costInEuro
+
+      return [
+        c.created_at,
+        `${c.amount.toFixed(2)} kWh`,
+        `${cent} ct`,
+        `${costInEuro.toFixed(2)} €`
+      ]
+    })
+
+    // Monats-Header hinzufügen
+    doc.setFontSize(14)
+    doc.text(`${monthName} (Summe: ${monthTotalCost.toFixed(2)} €)`, 14, currentY)
+
+    autoTable(doc, {
+      startY: currentY + 4,
+      head: [['Datum', 'Menge', 'Cent/kWh', 'Kosten']],
+      body: tableBody,
+      theme: 'grid',
+      headStyles: { fillColor: [41, 128, 185] },
+      styles: { fontSize: 10 }
+    })
+
+    // Y-Position für die nächste Tabelle aktualisieren
+    currentY = (doc as any).lastAutoTable.finalY + 15
+
+    // Seitenumbruch, wenn der Platz knapp wird
+    if (currentY > 260) {
+      doc.addPage()
+      currentY = 20
+    }
+  }
+
+  // Jahres-Zusammenfassung ganz unten
+  doc.setFontSize(16)
+  if (currentY > 270) { doc.addPage(); currentY = 20 } // Umbruch-Check
+  doc.text(`Gesamtkosten im Jahr ${reportForm.value.year}: ${totalYearCost.toFixed(2)} €`, 14, currentY + 10)
+
+  // PDF-Datei direkt zum Download anbieten
+  doc.save(`Abrechnung_${creditor.name}_${reportForm.value.year}.pdf`)
+
+  dialogReport.value = false
 }
 </script>
 

@@ -12,6 +12,7 @@ export default defineEventHandler(async (event) => {
         creditor_id: charge_t.creditor_id,
         creditor_name: creditor_t.name,
         amount: charge_t.amount,
+        cent: charge_t.cent,
         created_at: charge_t.created_at,
         posted_at: charge_t.posted_at,
     })

@@ -19,6 +19,7 @@ export default defineNitroPlugin(() => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       creditor_id INTEGER NOT NULL,
       amount REAL NOT NULL,
+      cent REAL DEFAULT NULL,
       created_at TEXT NOT NULL,
       posted_at TEXT,
       user_id INTEGER NOT NULL,

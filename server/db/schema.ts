@@ -17,6 +17,7 @@ export const charge_t = sqliteTable('charge_t', {
     user_id: integer('user_id').notNull().references(() => user_t.id),
     creditor_id: integer('creditor_id').notNull().references(() => creditor_t.id),
     amount: real('amount').notNull(),
+    cent: real('cent'),
     created_at: text('created_at').notNull(),
     posted_at: text('posted_at')
 })

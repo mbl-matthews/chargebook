@@ -11,6 +11,7 @@ export default defineEventHandler(async (event) => {
         user_id: userId,
         creditor_id: body.creditor_id,
         amount: body.amount,
+        cent: body.cent,
         created_at: body.created_at,
         posted_at: body.posted_at ?? null,
     }).returning()

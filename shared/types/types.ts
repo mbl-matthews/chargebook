@@ -6,7 +6,8 @@ export interface Creditor {
 export interface CreateChargeInput {
     creditor_id: number
     amount: number
-    created_at: string
+    cent: number | null
+    created_at: string | undefined
     posted_at?: string | null
 }
 
@@ -15,6 +16,7 @@ export interface ChargeEntry {
     creditor_id: number
     creditor_name: string
     amount: number
+    cent: number | null
     created_at: string
     posted_at: string | null
 }
